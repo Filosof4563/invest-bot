@@ -1,6 +1,19 @@
-# created by virtualenv automatically
-*.venv/
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# База данных (чтобы не загружать её в репозиторий)
 investments.db
-.idea/
+*.db
+
+# Кэш Python
 pycache/
 *.pyc
+
+# Настройки PyCharm
+.idea/
+
+# Логи и временные файлы
+*.log
+*.tmp
