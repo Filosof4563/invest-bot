@@ -1,0 +1,6 @@
+# created by virtualenv automatically
+*.venv/
+investments.db
+.idea/
+pycache/
+*.pyc
