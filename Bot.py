@@ -6,6 +6,33 @@ from aiogram.filters import Command
 import asyncpg
 import yfinance as yf
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+import aiohttp
+import xml.etree.ElementTree as ET
+from datetime import datetime
+
+
+async def get_currency_rates():
+    """Получает курсы валют от ЦБ РФ"""
+    url = "http://www.cbr.ru/scripts/XML_daily.asp"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            xml_data = await response.text()
+
+    # Парсим XML
+    root = ET.fromstring(xml_data)
+    rates = {}
+
+    for valute in root.findall('Valute'):
+        char_code = valute.find('CharCode').text
+        value = valute.find('Value').text.replace(',', '.')
+        nominal = int(valute.find('Nominal').text)
+        rates[char_code] = float(value) / nominal
+
+    # Добавляем рубль
+    rates['RUB'] = 1.0
+
+    return rates
 
 # ---------- Настройки ----------
 TOKEN = os.getenv("BOT_TOKEN")
@@ -136,7 +163,8 @@ def get_main_keyboard():
     buttons = [
         [KeyboardButton(text="➕ Добавить")],
         [KeyboardButton(text="📊 Портфель")],
-        [KeyboardButton(text="❓ Помощь")]
+        [KeyboardButton(text="❓ Помощь")],
+        [KeyboardButton(text="💰 Курсы валют")],
     ]
     keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     return keyboard
