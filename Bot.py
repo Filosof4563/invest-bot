@@ -142,6 +142,18 @@ async def cmd_help(message: types.Message):
         "/portfolio — показать портфель\n"
         "/start — приветствие"
     )
+@dp.message()
+async def handle_unknown(message: types.Message):
+    # Если сообщение текстовое и не начинается с '/'
+    if message.text and not message.text.startswith('/'):
+        await message.answer(
+            "Я понимаю только команды.\n"
+            "Напишите /help, чтобы увидеть список доступных команд."
+        )
+    # Если это неизвестная команда (начинается с '/', но не обработана выше)
+    elif message.text and message.text.startswith('/'):
+        await message.answer("Неизвестная команда. Введите /help.")
+    # Игнорируем не-текстовые сообщения (стикеры, фото и т.д.)
 
 
 # ---------- Запуск ----------
