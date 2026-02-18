@@ -1,4 +1,11 @@
 aiogram
 yfinance
 aiosqlite
+
+
+
+
+
+
+
 aiohttp
