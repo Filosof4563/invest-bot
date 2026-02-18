@@ -9,7 +9,39 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemo
 import aiohttp
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from moexalgo import Ticker
 
+
+
+
+# Кэш для цен, чтобы не дёргать MOEX слишком часто (необязательно, но полезно)
+price_cache = {}
+cache_ttl = 60  # секунд, в течение которых считаем цену актуальной
+
+async def get_moex_price(ticker: str) -> float | None:
+    """Получает текущую цену акции на Мосбирже по тикеру (пример: SBER)"""
+    # Проверяем кэш
+    if ticker in price_cache:
+        price, timestamp = price_cache[ticker]
+        if (asyncio.get_event_loop().time() - timestamp) < cache_ttl:
+            return price
+
+    try:
+        t = Ticker(ticker)
+        # Получаем последнюю сделку (возвращает список, берём первый элемент)
+        last = t.last()
+        if last and isinstance(last, list) and len(last) > 0:
+            # Формат ответа: [{'secid': 'SBER', 'price': 285.5, 'quantity': 1, 'time': ...}]
+            price = float(last[0]['price'])
+            # Сохраняем в кэш
+            price_cache[ticker] = (price, asyncio.get_event_loop().time())
+            return price
+        else:
+            logging.warning(f"MOEX: нет данных по тикеру {ticker}")
+            return None
+    except Exception as e:
+        logging.error(f"Ошибка MOEX для {ticker}: {e}")
+        return None
 
 async def get_currency_rates():
     """Получает курсы валют от ЦБ РФ"""
@@ -116,16 +148,24 @@ async def cmd_portfolio(message: types.Message):
         ticker = row['ticker']
         qty = row['quantity']
         buy_price = row['buy_price']
+
+        # Пытаемся получить цену
+        current_price = 0.0
+        # Сначала пробуем yfinance
         try:
             stock = yf.Ticker(ticker)
             hist = stock.history(period="1d")
-            if hist.empty:
-                current_price = 0.0
-            else:
+            if not hist.empty:
                 current_price = hist['Close'].iloc[-1]
+            else:
+                # Если yfinance не дал данных, пробуем MOEX
+                current_price = await get_moex_price(ticker) or 0.0
         except Exception as e:
-            current_price = 0.0
-            logging.error(f"Ошибка получения цены для {ticker}: {e}")
+            # Если yfinance упал, сразу пробуем MOEX
+            logging.warning(f"yfinance error for {ticker}: {e}, trying MOEX")
+            current_price = await get_moex_price(ticker) or 0.0
+
+        # ... остальной код (расчёт стоимости, прибыли) ...
 
         cost = qty * buy_price
         value = qty * current_price

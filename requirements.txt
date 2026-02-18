@@ -2,3 +2,4 @@ aiogram
 yfinance
 asyncpg
 aiohttp
+moexalgo
