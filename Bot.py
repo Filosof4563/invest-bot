@@ -16,7 +16,7 @@ async def run_web_server():
     app = web.Application()
     app.router.add_get("/", handle)
     app.router.add_get("/health", handle)
-    port = int(os.environ.get("PORT", 10000))  # Render передаёт порт в переменной PORT
+    port = int(os.environ.get("PORT", 4000))  # Render передаёт порт в переменной PORT
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
