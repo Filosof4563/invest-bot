@@ -8,7 +8,6 @@ import yfinance as yf
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 import aiohttp
 import xml.etree.ElementTree as ET
-from datetime import datetime
 from moexalgo import Ticker
 
 
@@ -18,29 +17,21 @@ from moexalgo import Ticker
 price_cache = {}
 cache_ttl = 60  # секунд, в течение которых считаем цену актуальной
 
-async def get_moex_price(ticker: str) -> float | None:
-    """Получает текущую цену акции на Мосбирже по тикеру (пример: SBER)"""
-    # Проверяем кэш
-    if ticker in price_cache:
-        price, timestamp = price_cache[ticker]
-        if (asyncio.get_event_loop().time() - timestamp) < cache_ttl:
-            return price
-
+async def get_moex_price_iss(ticker: str) -> float | None:
+    """Получает текущую цену акции напрямую с Московской биржи через ISS API"""
+    url = f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{ticker}.json"
     try:
-        t = Ticker(ticker)
-        # Получаем последнюю сделку (возвращает список, берём первый элемент)
-        last = t.last()
-        if last and isinstance(last, list) and len(last) > 0:
-            # Формат ответа: [{'secid': 'SBER', 'price': 285.5, 'quantity': 1, 'time': ...}]
-            price = float(last[0]['price'])
-            # Сохраняем в кэш
-            price_cache[ticker] = (price, asyncio.get_event_loop().time())
-            return price
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                data = await resp.json()
+        # Извлекаем цену последней сделки (колонка 12 в marketdata)
+        price = data['marketdata']['data'][0][12]  # LAST
+        if price is not None:
+            return float(price)
         else:
-            logging.warning(f"MOEX: нет данных по тикеру {ticker}")
             return None
     except Exception as e:
-        logging.error(f"Ошибка MOEX для {ticker}: {e}")
+        print(f"Ошибка при получении цены для {ticker} через ISS: {e}")
         return None
 
 async def get_currency_rates():
@@ -137,35 +128,33 @@ async def cmd_portfolio(message: types.Message):
         rows = await conn.fetch(
             "SELECT ticker, quantity, buy_price FROM holdings WHERE user_id=$1",
             user_id
-        )
+            )
     if not rows:
         await message.answer("Портфель пуст. Добавьте бумаги через /add")
         return
+
     total_cost = 0.0
     total_value = 0.0
     lines = []
+
     for row in rows:
         ticker = row['ticker']
         qty = row['quantity']
         buy_price = row['buy_price']
-
-        # Пытаемся получить цену
         current_price = 0.0
-        # Сначала пробуем yfinance
+        # Сначала пробуем yfinance (для иностранных акций)
         try:
             stock = yf.Ticker(ticker)
             hist = stock.history(period="1d")
             if not hist.empty:
-                current_price = hist['Close'].iloc[-1]
+                 current_price = hist['Close'].iloc[-1]
             else:
-                # Если yfinance не дал данных, пробуем MOEX
-                current_price = await get_moex_price(ticker) or 0.0
+                    # Если yfinance не дал данных, пробуем MOEX ISS
+                    current_price = await get_moex_price_iss(ticker) or 0.0
         except Exception as e:
-            # Если yfinance упал, сразу пробуем MOEX
-            logging.warning(f"yfinance error for {ticker}: {e}, trying MOEX")
-            current_price = await get_moex_price(ticker) or 0.0
-
-        # ... остальной код (расчёт стоимости, прибыли) ...
+            # При ошибке yfinance сразу пробуем MOEX
+            current_price = await get_moex_price_iss(ticker) or 0.0
+            logging.warning(f"Ошибка yfinance для {ticker}: {e}, использован MOEX")
 
         cost = qty * buy_price
         value = qty * current_price
@@ -183,6 +172,7 @@ async def cmd_portfolio(message: types.Message):
 
     total_profit = total_value - total_cost
     total_profit_pct = (total_profit / total_cost * 100) if total_cost != 0 else 0
+
     header = f"Общая стоимость: {total_value:.2f}\n"
     header += f"Общая прибыль: {total_profit:.2f} ({total_profit_pct:.1f}%)\n\n"
     await message.answer(header + "\n".join(lines))
