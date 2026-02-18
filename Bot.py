@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 import asyncpg
 import yfinance as yf
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
 # ---------- Настройки ----------
 TOKEN = os.getenv("BOT_TOKEN")
@@ -44,16 +45,6 @@ async def init_db():
     logging.info("База данных PostgreSQL готова")
 
 # ---------- Команды ----------
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer(
-        "Привет! Я помогу отслеживать твой инвестиционный портфель.\n"
-        "Команды:\n"
-        "/add TICKER КОЛИЧЕСТВО ЦЕНА_ПОКУПКИ — добавить сделку\n"
-        "/portfolio — показать текущий портфель\n"
-        "/help — справка"
-    )
-
 @dp.message(Command("add"))
 async def cmd_add(message: types.Message):
     args = message.text.split()
@@ -88,20 +79,16 @@ async def cmd_portfolio(message: types.Message):
             "SELECT ticker, quantity, buy_price FROM holdings WHERE user_id=$1",
             user_id
         )
-
     if not rows:
         await message.answer("Портфель пуст. Добавьте бумаги через /add")
         return
-
     total_cost = 0.0
     total_value = 0.0
     lines = []
-
     for row in rows:
         ticker = row['ticker']
         qty = row['quantity']
         buy_price = row['buy_price']
-
         try:
             stock = yf.Ticker(ticker)
             hist = stock.history(period="1d")
@@ -142,6 +129,38 @@ async def cmd_help(message: types.Message):
         "/portfolio — показать портфель\n"
         "/start — приветствие"
     )
+
+
+# Функция для создания клавиатуры
+def get_main_keyboard():
+    buttons = [
+        [KeyboardButton(text="➕ Добавить")],
+        [KeyboardButton(text="📊 Портфель")],
+        [KeyboardButton(text="❓ Помощь")]
+    ]
+    keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+    return keyboard
+
+# Изменяем команду /start, чтобы отправлять клавиатуру
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    await message.answer(
+        "Привет! Я помогу отслеживать твой инвестиционный портфель.\n"
+        "Используй кнопки ниже 👇",
+        reply_markup=get_main_keyboard()
+    )
+
+# Обработчик нажатий на кнопки
+@dp.message(lambda msg: msg.text in ["➕ Добавить", "📊 Портфель", "❓ Помощь"])
+async def handle_buttons(message: types.Message):
+    if message.text == "➕ Добавить":
+        await cmd_add(message)  # вызываем существующую команду
+    elif message.text == "📊 Портфель":
+        await cmd_portfolio(message)
+    elif message.text == "❓ Помощь":
+        await cmd_help(message)
+
+
 @dp.message()
 async def handle_unknown(message: types.Message):
     # Если сообщение текстовое и не начинается с '/'
