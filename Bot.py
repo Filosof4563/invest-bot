@@ -189,6 +189,27 @@ async def handle_buttons(message: types.Message):
         await cmd_help(message)
 
 
+@dp.message(lambda msg: msg.text == "💰 Курсы валют")
+async def cmd_rates(message: types.Message):
+    await message.answer("⏳ Получаю актуальные курсы...")
+
+    try:
+        rates = await get_currency_rates()
+
+        text = "📈 Курсы валют к рублю:\n\n"
+        text += f"🇺🇸 USD: {rates.get('USD', 0):.2f} ₽\n"
+        text += f"🇪🇺 EUR: {rates.get('EUR', 0):.2f} ₽\n"
+        text += f"🇬🇧 GBP: {rates.get('GBP', 0):.2f} ₽\n"
+        text += f"🇨🇳 CNY: {rates.get('CNY', 0):.2f} ₽\n"
+        text += f"🇰🇿 KZT: {rates.get('KZT', 0):.2f} ₽\n"
+        text += f"🇯🇵 JPY: {rates.get('JPY', 0):.2f} ₽\n"
+
+        await message.answer(text, parse_mode="Markdown")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения курсов: {e}")
+        logging.error(f"Rates error: {e}", exc_info=True)
+
 @dp.message()
 async def handle_unknown(message: types.Message):
     # Если сообщение текстовое и не начинается с '/'
