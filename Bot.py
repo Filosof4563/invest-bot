@@ -6,7 +6,7 @@ import aiosqlite
 import yfinance as yf
 import os
 from aiohttp import web
-
+print('Starting bot...')
 # Простейший обработчик для проверки здоровья
 async def handle(request):
     return web.Response(text="Bot is running")
@@ -25,29 +25,18 @@ async def run_web_server():
 
 # Токен из BotFather
 TOKEN = os.getenv("BOT_TOKEN")
-
 bot = Bot(token=TOKEN)
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
-
 # Создаём объекты бота и диспетчера
-bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-# Запуск
-async def main():
-    await dp.start_polling(bot)
-
-
 
 async def init_db():
     async with aiosqlite.connect('investments.db') as db:
-        await db.execute(' CREATE TABLE IF NOT EXISTS holdings (user_id INTEGER, ticker TEXT, quantity REAL, buy_price REAL, PRIMARY KEY (user_id, ticker))')
+        await db.execute('CREATE TABLE IF NOT EXISTS holdings (user_id INTEGER, ticker TEXT, quantity REAL, buy_price REAL, PRIMARY KEY (user_id, ticker))')
         await db.commit()
 
-
-
-# --- Обработчики команд (какие ты уже написал) ---
+# --- Обработчики команд ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer("Привет! Я помогу отслеживать твой инвестицонный портфель. \n"
@@ -56,9 +45,6 @@ async def cmd_start(message: types.Message):
                          "/portfolio - показать текущий портфель\n"
                          "/help - справка")
 
-
-# ... остальные команды ...
-# В функции main перед dp.start_polling:
 # --- Главная функция ---
 async def main():
     await init_db()
