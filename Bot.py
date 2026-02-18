@@ -13,15 +13,15 @@ async def handle(request):
 
 # Запуск веб-сервера в фоне
 async def run_web_server():
+    port = int(os.environ.get('PORT', 10000))
+    print(f"DEBUG: пытаюсь запустить сервер на порту {port}")
     app = web.Application()
-    app.router.add_get("/", handle)
-    app.router.add_get("/health", handle)
-    port = int(os.environ.get("PORT", 4000))  # Render передаёт порт в переменной PORT
+    app.router.add_get('/', lambda r: web.Response(text='ok'))
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
+    site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Web server started on port {port}")
+    print(f"DEBUG: сервер успешно запущен")
 
 # Токен из BotFather
 TOKEN = os.getenv("BOT_TOKEN")
